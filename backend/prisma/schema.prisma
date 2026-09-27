@@ -1,0 +1,218 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User and Authentication
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String
+  role          String   @default("user")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspaces    WorkspaceMember[]
+  projects      Project[]
+  sessions      Session[]
+}
+
+// Workspace Management
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  members     WorkspaceMember[]
+  projects    Project[]
+  campaigns   Campaign[]
+  brandAssets BrandAsset[]
+  products    Product[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String    @default("member")
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+// Session Management
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  tokenHash   String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Projects
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  name        String
+  description String?
+  type        String   @default("content")
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contentItems ContentItem[]
+  videoProjects VideoProject[]
+}
+
+// Brand Assets
+model BrandAsset {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  type        String   // color, font, tone, imagery, etc.
+  value       String   // JSON stringified for flexibility
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Content Items
+model ContentItem {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  type        String   // blog_post, script, caption, etc.
+  content     String   // Rich text or markdown
+  status      String   @default("draft")
+  platform    String?  // instagram, tiktok, youtube, etc.
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// Video Projects
+model VideoProject {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  status      String   @default("draft")
+  platform    String   // instagram, tiktok, youtube, etc.
+  duration    Int?     // in seconds
+  format      String?  // vertical, horizontal, square
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scenes      VideoScene[]
+  renders     VideoRender[]
+}
+
+// Video Scenes
+model VideoScene {
+  id              String   @id @default(cuid())
+  videoProjectId  String
+  sceneNumber     Int
+  type            String   // image, text, video, etc.
+  content         String   // JSON stringified scene data
+  duration        Int      // in milliseconds
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  videoProject    VideoProject @relation(fields: [videoProjectId], references: [id], onDelete: Cascade)
+}
+
+// Video Renders
+model VideoRender {
+  id              String   @id @default(cuid())
+  videoProjectId  String
+  status          String   @default("queued")
+  format          String   // mp4, webm, etc.
+  resolution      String?  // 720p, 1080p, 4k
+  fileUrl         String?
+  thumbnailUrl    String?
+  jobId           String?  // Reference to background job
+  error           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  videoProject    VideoProject @relation(fields: [videoProjectId], references: [id], onDelete: Cascade)
+}
+
+// Products
+model Product {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  price       Float
+  type        String   // digital, physical, service
+  status      String   @default("draft")
+  fileUrl     String?  // For digital products
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Campaigns
+model Campaign {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  status      String   @default("draft")
+  channel     String   // email, whatsapp, sms, social
+  targetAudience String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Jobs (Background Tasks)
+model Job {
+  id          String   @id @default(cuid())
+  type        String   // generate_content, render_video, etc.
+  status      String   @default("queued")
+  workspaceId String
+  input       String   // JSON stringified
+  output      String?  // JSON stringified
+  error       String?
+  progress    Int      @default(0)
+  attempts    Int      @default(0)
+  provider    String?  // Which provider was used
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Analytics
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventType   String
+  contentId   String?
+  metadata    String?  // JSON stringified
+  createdAt   DateTime @default(now())
+}
