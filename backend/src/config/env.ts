@@ -1,13 +1,11 @@
-import dotenv from 'dotenv';
+import { z } from 'zod';
 
-dotenv.config();
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  PORT: z.coerce.number().default(3000),
+  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
+  JWT_EXPIRES_IN: z.string().default('7d'),
+  OPENAI_API_KEY: z.string().optional(),
+});
 
-export const env = {
-  port: Number(process.env.PORT || 3000),
-  jwtSecret: process.env.JWT_SECRET || 'dev-secret-key-change-in-production',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  databaseUrl: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/zapcart',
-  nodeEnv: process.env.NODE_ENV || 'development',
-  redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',
-  openaiApiKey: process.env.OPENAI_API_KEY || '',
-};
+export const env = envSchema.parse(process.env);

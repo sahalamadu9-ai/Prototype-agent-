@@ -54,7 +54,14 @@ export class AIOrchestrator {
   private async _getLLM() {
     const llm = providerManager.getLLMProvider('openai');
     if (!llm) {
-      throw new Error('No OpenAI provider registered');
+      return {
+        generateText: async (prompt: string) => ({
+          text: `Demo generated output for: ${prompt.slice(0, 120)}`,
+          tokensUsed: 0,
+          model: 'demo-mode',
+          finishReason: 'demo',
+        }),
+      };
     }
     return llm;
   }

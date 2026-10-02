@@ -10,6 +10,7 @@ import orchestratorRoutes from './api/orchestrator/routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { prisma } from './db/client.js';
 import { startJobWorker } from './worker/jobWorker.js';
+import providerManager from './providers/interfaces.js';
 
 const app = express();
 
@@ -19,7 +20,12 @@ app.use(morgan('dev'));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', environment: env.nodeEnv });
+  const providerReady = !!providerManager.getLLMProvider('openai');
+  res.json({
+    status: 'ok',
+    environment: env.nodeEnv,
+    llmProviderReady: providerReady,
+  });
 });
 
 app.use('/api/auth', authRoutes);
