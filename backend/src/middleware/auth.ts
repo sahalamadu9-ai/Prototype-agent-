@@ -22,8 +22,10 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
     req.user = { id: decoded.sub, email: decoded.email ?? null };
     return next();
   } catch (error) {
-    return res.status(401).json(apiError('INVALID_TOKEN', 'Invalid token', {
-      detail: error instanceof Error ? error.message : 'Token verification failed',
-    }));
+    return res.status(401).json(
+      apiError('INVALID_TOKEN', 'Invalid token', {
+        detail: error instanceof Error ? error.message : 'Token verification failed',
+      }),
+    );
   }
 };

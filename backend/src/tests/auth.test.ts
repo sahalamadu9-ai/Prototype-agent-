@@ -10,12 +10,28 @@ const mockFindUnique = vi.fn();
 const mockCreate = vi.fn();
 const mockCompare = vi.fn();
 const mockHash = vi.fn();
+const mockWorkspaceMemberFindUnique = vi.fn();
 
 vi.mock('../db/client.js', () => ({
   prisma: {
     user: {
       findUnique: mockFindUnique,
       create: mockCreate,
+    },
+    workspaceMember: {
+      findUnique: mockWorkspaceMemberFindUnique,
+    },
+    workspace: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+    },
+    project: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }));
@@ -29,6 +45,8 @@ vi.mock('bcryptjs', () => ({
 
 import { registerUser, loginUser } from '../api/auth/controller.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { canAccessProject } from '../api/projects/routes.js';
+import { canAccessWorkspace } from '../api/workspaces/routes.js';
 
 describe('auth middleware', () => {
   it('accepts valid bearer token and attaches userId', () => {
@@ -147,5 +165,25 @@ describe('auth controller', () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+  });
+});
+
+describe('workspace and project access', () => {
+  it('allows a workspace member to access a workspace', async () => {
+    mockWorkspaceMemberFindUnique.mockResolvedValue({ workspaceId: 'ws-1', userId: 'u-1' });
+    const result = await canAccessWorkspace('ws-1', 'u-1');
+    expect(result).toEqual({ workspaceId: 'ws-1', userId: 'u-1' });
+  });
+
+  it('allows a workspace member to access a project', async () => {
+    mockWorkspaceMemberFindUnique.mockResolvedValue({ workspaceId: 'ws-1', userId: 'u-1' });
+    const result = await canAccessProject('ws-1', 'u-1');
+    expect(result).toEqual({ workspaceId: 'ws-1', userId: 'u-1' });
+  });
+
+  it('rejects access for non-members', async () => {
+    mockWorkspaceMemberFindUnique.mockResolvedValue(null);
+    const result = await canAccessProject('ws-2', 'u-9');
+    expect(result).toBeNull();
   });
 });
