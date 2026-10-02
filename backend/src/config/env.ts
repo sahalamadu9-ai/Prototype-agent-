@@ -8,4 +8,12 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
 });
 
-export const env = envSchema.parse(process.env);
+const rawEnv = envSchema.parse(process.env);
+
+export const env = {
+  nodeEnv: rawEnv.NODE_ENV,
+  port: rawEnv.PORT,
+  jwtSecret: rawEnv.JWT_SECRET,
+  jwtExpiresIn: rawEnv.JWT_EXPIRES_IN,
+  openaiApiKey: rawEnv.OPENAI_API_KEY,
+};

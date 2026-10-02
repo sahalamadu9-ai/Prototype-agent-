@@ -1,7 +1,6 @@
 version: '3.9'
 
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: zapcart-postgres
@@ -19,7 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache & Queue
   redis:
     image: redis:7-alpine
     container_name: zapcart-redis
@@ -33,7 +31,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend API Server
   backend:
     build:
       context: ./backend
@@ -44,7 +41,7 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-zapcart}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-secret-key}
-      API_PORT: 3000
+      PORT: 3000
     ports:
       - "3000:3000"
     depends_on:
@@ -57,40 +54,25 @@ services:
       - /app/node_modules
     command: npm run dev
 
-  # Background Job Worker
   worker:
     build:
-      context: ./worker
+      context: ./backend
       dockerfile: Dockerfile
     container_name: zapcart-worker
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-zapcart}
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - ./worker:/app
+      - ./backend:/app
       - /app/node_modules
-    command: npm run dev
-
-  # Frontend (Optional - usually runs separately for development)
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   container_name: zapcart-frontend
-  #   ports:
-  #     - "3001:3000"
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:3000
-  #   volumes:
-  #     - ./frontend:/app
-  #     - /app/node_modules
-  #   command: npm run dev
+    command: npm run worker
 
 volumes:
   postgres_data:
