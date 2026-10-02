@@ -11,6 +11,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { prisma } from './db/client.js';
 import { startJobWorker } from './worker/jobWorker.js';
 import providerManager from './providers/interfaces.js';
+import { apiSuccess, apiError } from './utils/apiResponse.js';
 
 const app = express();
 
@@ -19,13 +20,25 @@ app.use(helmet());
 app.use(morgan('dev'));
 app.use(express.json());
 
-app.get('/health', (_req, res) => {
-  const providerReady = !!providerManager.getLLMProvider('openai');
-  res.json({
-    status: 'ok',
-    environment: env.nodeEnv,
-    llmProviderReady: providerReady,
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const providerReady = !!providerManager.getLLMProvider('openai');
+    res.json(
+      apiSuccess({
+        status: 'ok',
+        environment: env.nodeEnv,
+        database: 'connected',
+        llmProviderReady: providerReady,
+      }),
+    );
+  } catch (error) {
+    res.status(503).json(
+      apiError('DATABASE_UNAVAILABLE', 'Database is not reachable', {
+        detail: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 });
 
 app.use('/api/auth', authRoutes);
@@ -39,19 +52,32 @@ app.get('/api/me', authMiddleware, async (req: any, res) => {
       where: { id: req.userId },
       select: { id: true, email: true, name: true },
     });
-    res.json(user);
+
+    if (!user) {
+      return res.status(404).json(apiError('USER_NOT_FOUND', 'User not found'));
+    }
+
+    return res.json(apiSuccess(user));
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch user' });
+    return res.status(500).json(
+      apiError('INTERNAL_ERROR', 'Failed to fetch user', {
+        detail: error instanceof Error ? error.message : String(error),
+      }),
+    );
   }
 });
 
 app.use((_req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  res.status(404).json(apiError('NOT_FOUND', 'Endpoint not found'));
 });
 
 app.use((err: any, _req: any, res: any, _next: any) => {
   console.error(err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json(
+    apiError('INTERNAL_ERROR', 'Internal server error', {
+      detail: process.env.NODE_ENV === 'development' ? err.message : null,
+    }),
+  );
 });
 
 const port = env.port;
