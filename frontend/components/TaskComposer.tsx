@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { apiFetch } from '@/lib/api';
 
 type TaskComposerProps = {
@@ -13,7 +13,7 @@ export default function TaskComposer({ workspaceId }: TaskComposerProps) {
   const [error, setError] = useState('');
   const [task, setTask] = useState<any>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError('');

@@ -7,10 +7,11 @@ import authRoutes from './api/auth/routes.js';
 import workspaceRoutes from './api/workspaces/routes.js';
 import projectRoutes from './api/projects/routes.js';
 import orchestratorRoutes from './api/orchestrator/routes.js';
+import contentRoutes from './api/content/routes.js';
 import { authMiddleware } from './middleware/auth.js';
 import { prisma } from './db/client.js';
 import { startJobWorker } from './worker/jobWorker.js';
-import providerManager from './providers/interfaces.js';
+import { getProviderStatus } from './providers/index.js';
 import { apiSuccess, apiError } from './utils/apiResponse.js';
 
 const app = express();
@@ -23,13 +24,14 @@ app.use(express.json());
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    const providerReady = !!providerManager.getLLMProvider('openai');
+    const llm = getProviderStatus();
     res.json(
       apiSuccess({
         status: 'ok',
         environment: env.nodeEnv,
         database: 'connected',
-        llmProviderReady: providerReady,
+        llmProviderReady: llm.ready,
+        llm,
       }),
     );
   } catch (error) {
@@ -45,6 +47,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/orchestrator', orchestratorRoutes);
+app.use('/api/content', contentRoutes);
 
 app.get('/api/me', authMiddleware, async (req: any, res) => {
   try {

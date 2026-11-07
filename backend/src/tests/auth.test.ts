@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
 
 vi.stubEnv('NODE_ENV', 'test');
 vi.stubEnv('PORT', '3000');
 vi.stubEnv('JWT_SECRET', 'test-secret-key-12345');
 vi.stubEnv('JWT_EXPIRES_IN', '7d');
 
-const mockFindUnique = vi.fn();
-const mockCreate = vi.fn();
-const mockCompare = vi.fn();
-const mockHash = vi.fn();
-const mockWorkspaceMemberFindUnique = vi.fn();
+// vi.mock factories are hoisted: the mock fns must be created with vi.hoisted
+// so they are initialised before the factories reference them.
+const {
+  mockFindUnique,
+  mockCreate,
+  mockCompare,
+  mockHash,
+  mockWorkspaceMemberFindUnique,
+} = vi.hoisted(() => ({
+  mockFindUnique: vi.fn(),
+  mockCreate: vi.fn(),
+  mockCompare: vi.fn(),
+  mockHash: vi.fn(),
+  mockWorkspaceMemberFindUnique: vi.fn(),
+}));
 
 vi.mock('../db/client.js', () => ({
   prisma: {
@@ -50,7 +61,9 @@ import { canAccessWorkspace } from '../api/workspaces/routes.js';
 
 describe('auth middleware', () => {
   it('accepts valid bearer token and attaches userId', () => {
-    const token = jwt.sign({ sub: 'user-123', email: 'user@example.com' }, 'test-secret-key-12345');
+    // Sign with the same secret the middleware actually uses: env.ts parses
+    // process.env at import time, so vi.stubEnv cannot retrofit it here.
+    const token = jwt.sign({ sub: 'user-123', email: 'user@example.com' }, env.jwtSecret);
     const req: any = { headers: { authorization: `Bearer ${token}` } };
     const res: any = { status: vi.fn().mockReturnThis(), json: vi.fn() };
     const next = vi.fn();

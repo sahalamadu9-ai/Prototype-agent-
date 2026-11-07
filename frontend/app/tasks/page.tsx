@@ -29,7 +29,7 @@ export default function TasksPage() {
         }
 
         setWorkspaceId(wsId);
-        const data = await apiFetch<Task[]>(`/projects?workspaceId=${wsId}`);
+        const data = await apiFetch<Task[]>(`/orchestrator?workspaceId=${wsId}`);
         setTasks(data || []);
       } catch (error) {
         console.error('Failed to load tasks:', error);

@@ -41,6 +41,12 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-zapcart}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-30000}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      DEMO_MODE: ${DEMO_MODE:-false}
       PORT: 3000
     ports:
       - "3000:3000"
@@ -64,6 +70,10 @@ services:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-zapcart}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-your-secret-key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      DEMO_MODE: ${DEMO_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy

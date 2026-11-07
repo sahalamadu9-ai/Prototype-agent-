@@ -1,8 +1,9 @@
 import { prisma } from '../db/client.js';
 import orchestrator from '../orchestrator/AIOrchestrator.js';
+import { env } from '../config/env.js';
 
-const pollIntervalMs = Number(process.env.WORKER_POLL_INTERVAL_MS || 2000);
-const maxRetries = Number(process.env.WORKER_MAX_RETRIES || 3);
+const pollIntervalMs = env.workerPollIntervalMs;
+const maxRetries = env.workerMaxRetries;
 let running = false;
 
 async function claimNextJob() {

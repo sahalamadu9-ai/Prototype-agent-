@@ -1,7 +1,8 @@
-import { env } from '../config/env.js';
 import { prisma } from '../db/client.js';
 import providerManager from '../providers/interfaces.js';
-import registerDefaultProviders from '../providers/index.js';
+import type { ILLMProvider, LLMOptions, LLMResult } from '../providers/interfaces.js';
+import registerDefaultProviders, { getProviderStatus } from '../providers/index.js';
+import { LLMNotConfiguredError } from '../providers/OpenAIProvider.js';
 
 export interface OrchestratorRequest {
   userId: string;
@@ -30,7 +31,7 @@ export interface WorkflowStep {
 }
 
 export class AIOrchestrator {
-  private tools: Map<string, any> = new Map();
+  private tools: Map<string, (input: any) => Promise<any>> = new Map();
   private workflows: Map<string, WorkflowStep[]> = new Map();
   private brandMemory: Map<string, any> = new Map();
 
@@ -65,19 +66,27 @@ export class AIOrchestrator {
     return 'generate_content';
   }
 
-  private async _getLLM() {
-    const llm = providerManager.getLLMProvider('openai');
+  /**
+   * Always resolve the registered default provider. There is no silent mock
+   * fallback any more: without OPENAI_API_KEY (or DEMO_MODE=true) generation
+   * throws LLMNotConfiguredError so misconfiguration is visible immediately.
+   */
+  private _getLLM(): ILLMProvider {
+    const llm = providerManager.getLLMProvider();
     if (!llm) {
-      return {
-        generateText: async (prompt: string, _options?: any) => ({
-          text: `Demo generated output for: ${prompt.slice(0, 120)}`,
-          tokensUsed: 0,
-          model: 'demo-mode',
-          finishReason: 'demo',
-        }),
-      };
+      throw new LLMNotConfiguredError();
     }
     return llm;
+  }
+
+  /** Public generation entry point used by the Phase 2 content service. */
+  async generate(prompt: string, options: LLMOptions = {}): Promise<LLMResult> {
+    return this._getLLM().generateText(prompt, options);
+  }
+
+  /** Runtime provider information for /health and /api/orchestrator/status. */
+  get providerStatus() {
+    return getProviderStatus();
   }
 
   async process(request: OrchestratorRequest): Promise<OrchestratorResponse> {
@@ -101,7 +110,7 @@ export class AIOrchestrator {
         }),
         progress: 0,
         attempts: 0,
-        provider: 'mock',
+        provider: this.providerStatus.name,
       },
     });
 
@@ -145,6 +154,8 @@ export class AIOrchestrator {
         quantity: payload.context?.quantity || 3,
         type: payload.context?.type || 'content',
         contentId: payload.context?.contentId,
+        audience: payload.context?.audience,
+        tone: payload.context?.tone,
       });
 
       if (isWorker) {
@@ -155,6 +166,7 @@ export class AIOrchestrator {
             output: JSON.stringify(result),
             progress: 100,
             error: null,
+            provider: this.providerStatus.name,
           },
         });
       }
@@ -183,11 +195,9 @@ export class AIOrchestrator {
   }
 
   private async _generateContent(input: any): Promise<any> {
-    const llm = await this._getLLM();
-    const result = await llm.generateText(
-      `Create high-converting marketing content for: ${input.topic}. Format: ${input.type || 'content'}`,
+    const result = await this.generate(
+      `Create high-converting marketing content for: ${input.topic}. Format: ${input.type || 'content'}. Tone: ${input.tone || 'professional'}.`,
       {
-        model: 'gpt-4o-mini',
         temperature: 0.7,
         maxTokens: 1000,
         systemPrompt: 'You are a marketing copywriter for a growth-focused ecommerce brand.',
@@ -198,15 +208,14 @@ export class AIOrchestrator {
       content: result.text,
       type: input.type || 'content',
       model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
   private async _generateScript(input: any): Promise<any> {
-    const llm = await this._getLLM();
-    const result = await llm.generateText(
+    const result = await this.generate(
       `Write a short video script for: ${input.topic} with a ${input.platform || 'instagram'} platform format.`,
       {
-        model: 'gpt-4o-mini',
         temperature: 0.7,
         maxTokens: 1200,
         systemPrompt: 'You are a video scriptwriter for social campaigns.',
@@ -216,15 +225,15 @@ export class AIOrchestrator {
     return {
       script: result.text,
       platform: input.platform || 'instagram',
+      model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
   private async _generateCaptions(input: any): Promise<any> {
-    const llm = await this._getLLM();
-    const result = await llm.generateText(
-      'Generate 5 short social captions with CTA and hooks.',
+    const result = await this.generate(
+      `Generate ${input.quantity || 5} short social captions with CTA and hooks for: ${input.topic}.`,
       {
-        model: 'gpt-4o-mini',
         temperature: 0.8,
         maxTokens: 700,
       },
@@ -232,71 +241,81 @@ export class AIOrchestrator {
 
     return {
       captions: result.text.split(/\n+/).filter(Boolean),
+      model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
   private async _analyzeContent(input: any): Promise<any> {
-    const llm = await this._getLLM();
-    const result = await llm.generateText(
-      `Analyze this content for readability, conversion, and engagement: ${input.contentId || 'content'}`,
+    const result = await this.generate(
+      `Analyze this content for readability, conversion, and engagement: ${input.contentId || input.topic}`,
+      { systemPrompt: 'You are a content performance analyst.', maxTokens: 700 },
     );
 
     return {
-      readabilityScore: 85,
-      engagementScore: 80,
       summary: result.text,
+      model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
   private async _createCampaign(input: any): Promise<any> {
-    const llm = await this._getLLM();
-    const result = await llm.generateText(
+    const result = await this.generate(
       `Create a campaign brief for: ${input.description}`,
-      {
-        model: 'gpt-4o-mini',
-        maxTokens: 800,
-      },
+      { maxTokens: 800, systemPrompt: 'You are a growth marketing strategist.' },
     );
 
     return {
       campaignBrief: result.text,
       status: 'draft',
+      model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
+  /** Phase 2 research: now backed by the real LLM instead of hard-coded data. */
   private async _research(input: any): Promise<any> {
+    const result = await this.generate(
+      `Produce a market research brief for: ${input.topic}. Audience: ${input.audience || 'ecommerce shoppers'}. ` +
+        'Return 5 concise, actionable insights followed by 3 keyword opportunities.',
+      { systemPrompt: 'You are a market research analyst for ecommerce brands.', maxTokens: 800 },
+    );
+
     return {
-      sources: [
-        { title: 'Source 1', url: 'https://example.com', summary: 'Summary 1' },
-      ],
-      insights: ['Research insight generated'],
+      insights: result.text.split(/\n+/).filter(Boolean),
+      model: result.model,
+      tokensUsed: result.tokensUsed,
     };
   }
 
-  private async _generateImages(input: any): Promise<any> {
+  // Placeholder tools for Phase 3+ — intentionally explicit so a caller can
+  // never mistake them for a real image/voice/video generation result.
+  private async _generateImages(_input: any): Promise<any> {
     return {
-      images: Array(input.quantity || 3).fill(null).map((_, i) => ({
-        id: `image_${i + 1}`,
-        url: `https://placehold.co/1080x1080?text=Scene+${i + 1}`,
-      })),
+      notImplemented: true,
+      mode: 'stub',
+      message: 'Image provider is not wired yet (Phase 3: Creative Asset Studio).',
+      images: [],
     };
   }
 
-  private async _generateVoice(input: any): Promise<any> {
+  private async _generateVoice(_input: any): Promise<any> {
     return {
-      audioUrl: 'https://example.com/audio.mp3',
-      duration: 120,
+      notImplemented: true,
+      mode: 'stub',
+      message: 'Voice provider is not wired yet (Phase 4: Video Maker / Audio).',
+      audioUrl: null,
     };
   }
 
-  private async _renderVideo(input: any): Promise<any> {
+  private async _renderVideo(_input: any): Promise<any> {
     return {
-      videoId: `video_${Date.now()}`,
-      status: 'rendering',
-      estimatedTime: '5 minutes',
+      notImplemented: true,
+      mode: 'stub',
+      message: 'Video rendering is not wired yet (Phase 4: Rendering).',
+      status: 'not_started',
     };
   }
 }
 
 export default new AIOrchestrator();
-

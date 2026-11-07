@@ -36,7 +36,7 @@ export async function registerUser(req: Request, res: Response) {
     });
 
     const token = jwt.sign({ sub: user.id, email: user.email }, env.jwtSecret, {
-      expiresIn: env.jwtExpiresIn,
+      expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'],
     });
 
     return res.status(201).json(
@@ -65,7 +65,7 @@ export async function loginUser(req: Request, res: Response) {
     }
 
     const token = jwt.sign({ sub: user.id, email: user.email }, env.jwtSecret, {
-      expiresIn: env.jwtExpiresIn,
+      expiresIn: env.jwtExpiresIn as jwt.SignOptions['expiresIn'],
     });
 
     return res.status(200).json(

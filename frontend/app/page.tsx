@@ -11,6 +11,19 @@ type Workspace = {
   createdAt?: string;
 };
 
+const navItems = [
+  { label: 'Dashboard', href: '/' },
+  { label: 'Content', href: '/content' },
+  { label: 'Creative Studio', href: '#' },
+  { label: 'Video Maker', href: '#' },
+  { label: 'Brand Brain', href: '#' },
+  { label: 'Products', href: '#' },
+  { label: 'Campaigns', href: '#' },
+  { label: 'Calendar', href: '#' },
+  { label: 'Publishing', href: '#' },
+  { label: 'Analytics', href: '#' },
+];
+
 const fallbackModules = [
   ['Content', 'Research, ideas, scripts, and captions'],
   ['Creative Studio', 'Write-ups, thumbnails, and scene images'],
@@ -22,13 +35,24 @@ const fallbackModules = [
 
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [draftCount, setDraftCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await apiFetch<Workspace[]>('/workspaces');
-        setWorkspaces(data || []);
+        const list = data || [];
+        setWorkspaces(list);
+
+        if (list[0]?.id) {
+          try {
+            const items = await apiFetch<unknown[]>(`/content?workspaceId=${list[0].id}`);
+            setDraftCount(Array.isArray(items) ? items.length : 0);
+          } catch {
+            setDraftCount(0);
+          }
+        }
       } catch (error) {
         console.error('Failed to load workspaces:', error);
         setWorkspaces([]);
@@ -48,9 +72,9 @@ export default function DashboardPage() {
         </div>
 
         <nav className="nav-links">
-          {['Dashboard', 'Content', 'Creative Studio', 'Video Maker', 'Brand Brain', 'Products', 'Campaigns', 'Calendar', 'Publishing', 'Analytics'].map((item, index) => (
-            <a className={index === 0 ? 'active' : ''} href={index === 0 ? '/' : '#'} key={item}>
-              {item}
+          {navItems.map((item, index) => (
+            <a className={index === 0 ? 'active' : ''} href={item.href} key={item.label}>
+              {item.label}
             </a>
           ))}
         </nav>
@@ -63,7 +87,7 @@ export default function DashboardPage() {
             <h1>Good morning, creator.</h1>
             <p className="muted">Build, manage, and publish your next campaign from one workspace.</p>
           </div>
-          <button className="primary">Ask AI Orchestrator</button>
+          <a className="primary" href="/content">Open Content Studio →</a>
         </header>
 
         <div className="stats">
@@ -73,15 +97,15 @@ export default function DashboardPage() {
           </div>
           <div>
             <span>Draft content</span>
-            <strong>12</strong>
+            <strong>{draftCount ?? '—'}</strong>
           </div>
           <div>
             <span>Scheduled posts</span>
-            <strong>08</strong>
+            <strong>—</strong>
           </div>
           <div>
             <span>Audience reach</span>
-            <strong>24.8K</strong>
+            <strong>—</strong>
           </div>
         </div>
 
@@ -89,8 +113,8 @@ export default function DashboardPage() {
           <div className="section-card wide">
             <div className="section-heading">
               <h2>Workspace modules</h2>
-              <a href="/workspaces" className="link-btn">
-                View all →
+              <a href="/content" className="link-btn">
+                Open Content →
               </a>
             </div>
 
@@ -99,7 +123,7 @@ export default function DashboardPage() {
                 <article key={title}>
                   <h3>{title}</h3>
                   <p>{description}</p>
-                  <a href="#">Open module →</a>
+                  <a href={title === 'Content' ? '/content' : '#'}>Open module →</a>
                 </article>
               ))}
             </div>

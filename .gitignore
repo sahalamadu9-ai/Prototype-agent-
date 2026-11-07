@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json is committed: npm ci in CI/Docker requires it
 yarn.lock
+pnpm-lock.yaml
 
 # Environment variables
 .env
@@ -25,6 +26,8 @@ yarn-debug.log*
 # Build
 dist/
 build/
+.next/
+out/
 *.tsbuildinfo
 
 # Cache
